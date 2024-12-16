@@ -1,0 +1,53 @@
+# Build outputs
+*.o
+*.out
+*.exe
+build/
+
+# Node modules and npm files
+tests/visualization/node_modules/
+tests/visualization/build/
+tests/visualization/dist/
+tests/visualization/.cache/
+tests/visualization/coverage/
+tests/visualization/package-lock.json
+tests/visualization/.env
+tests/visualization/.env.*
+tests/visualization/*.local
+tests/visualization/npm-debug.log*
+tests/visualization/yarn-debug.log*
+tests/visualization/yarn-error.log*
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+
+# Test outputs
+*.log
+test_results/
+temp_output.txt
+
+# macOS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor backup files
+*~
+*.bak
+*.backup
+
+# Temporary files
+*.tmp
+*.temp
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
