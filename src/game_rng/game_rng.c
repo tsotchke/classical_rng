@@ -94,8 +94,16 @@ uint64_t next_random(GameRNG* rng) {
 }
 
 int random_range(GameRNG* rng, int min, int max) {
-    uint64_t range = (uint64_t)(max - min + 1);
-    return min + (int)(next_random(rng) % range);
+    if (min > max) {
+        return min;
+    }
+    /* Span in [1, 2^32]. Compute in 64-bit so (max - min + 1) can never
+       overflow: the original int form is signed-overflow UB at the full
+       int span (and 0 for e.g. random_range(rng, 0, -1)), which then makes
+       (next_random % range) a divide-by-zero -> SIGFPE. */
+    uint64_t span = (uint64_t)((int64_t)max - (int64_t)min) + 1;
+    /* Unsigned add avoids signed-overflow UB when min<0 and result near max. */
+    return (int)((uint32_t)min + (uint32_t)(next_random(rng) % span));
 }
 
 double random_float(GameRNG* rng) {
