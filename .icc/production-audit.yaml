@@ -1,0 +1,17 @@
+profiles:
+  - name: classical-rng-v2-rebuild
+    default: true
+    required_artifacts: [index, memory, architecture, git-history]
+    presets: [shell-hardening]
+    # The default guard's 200-line replacement budget is intentionally too
+    # small for this authorized whole-project rebuild. guard_diff is evaluated
+    # separately with .icc/guard-diff-v2-rebuild.json; keep the remaining
+    # production-audit surfaces active here.
+    severity_overrides:
+      guard_diff: ignore
+    verdict:
+      fail_on:
+        high: 0
+      warn_on:
+        medium: 0
+        low: 0

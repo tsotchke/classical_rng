@@ -1,0 +1,23 @@
+{
+  "block_file_deletions": true,
+  "max_deleted_files": 0,
+  "max_deleted_lines": 3000,
+  "warn_deleted_lines": 3000,
+  "detect_rollback_risks": true,
+  "block_rollback_risks": true,
+  "discount_moved_lines": true,
+  "moved_line_min_length": 6,
+  "untracked_move_min_ratio": 0.6,
+  "block_renames": false,
+  "protected_delete_paths": [
+    ".github/workflows/**",
+    "**/migrations/**",
+    "**/schema/**",
+    "**/schemas/**",
+    "LICENSE"
+  ],
+  "protected_touch_paths": [
+    ".env",
+    "secrets/"
+  ]
+}

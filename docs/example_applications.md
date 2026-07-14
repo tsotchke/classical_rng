@@ -1,173 +1,56 @@
-# Example Applications
+# Example applications
 
-This document details the example applications provided with the Classical RNG library, demonstrating practical use cases for both the Game RNG and Cryptographic RNG implementations.
+The examples are executable demonstrations of one contract each. They are
+deliberately not application frameworks or cryptographic protocols.
 
-## Game RNG Examples
+## Numerical introspection
 
-### 1. Terrain Generation
-Location: `examples/game/terrain_generation.c`
+[`examples/constant_roundoff.c`](../examples/constant_roundoff.c) prints the
+fixed-point scale, pi/e divisor/remainder pairs, mixed residue, and final output
+for four steps.
 
-A heightmap-based terrain generator that creates realistic-looking landscapes using the Game RNG.
+- Preconditions: a conforming build and explicit seed.
+- Demonstrates: deterministic `C mod d` introspection and versioned output.
+- Does not demonstrate: measurement of the omitted irrational tail,
+  cryptographic entropy, or statistical quality.
 
-#### Features
-- 256x256 resolution heightmap generation
-- Island-like formation with center-based attenuation
-- Outputs as PGM (Portable Gray Map) format
-- Smooth noise function for natural-looking results
+## Games and simulations
 
-#### Usage
-```bash
-./build/terrain_gen > terrain.pgm
+| Example | Demonstrates | Deliberately omits |
+|---|---|---|
+| [`examples/dice.c`](../examples/dice.c) | Explicit seed and unbiased six-way mapping | Stream persistence and game architecture |
+| [`examples/shuffle.c`](../examples/shuffle.c) | Fisher-Yates with unbiased shrinking bounds | Generic containers and error recovery |
+| [`examples/game/particle_system.c`](../examples/game/particle_system.c) | Reproducible signed velocities | Physical realism and parallel stream splitting |
+| [`examples/game/terrain_generation.c`](../examples/game/terrain_generation.c) | Deterministic procedural grid | Production terrain algorithms and serialization |
+
+For scientific or replay use, record the library version, seed, and sequence of
+calls. Merely reusing a seed after changing call order does not reproduce the
+same stream position.
+
+## Security-sensitive inputs
+
+| Example | Demonstrates | Deliberately omits |
+|---|---|---|
+| [`examples/secure_token.c`](../examples/secure_token.c) | Direct 256-bit OS request, status check, hex encoding | Storage, comparison, transport, and erasure |
+| [`examples/crypto/token_generation.c`](../examples/crypto/token_generation.c) | Native token generation in the legacy example family | Complete authentication/session protocol |
+| [`examples/crypto/key_derivation.c`](../examples/crypto/key_derivation.c) | Native salt preparation and explicit handoff boundary | An actual KDF implementation |
+
+The key-derivation example intentionally directs callers to reviewed Argon2id,
+scrypt, PBKDF2, or HKDF implementations as appropriate. Random salt generation
+does not itself derive or protect a key.
+
+## Command-line tools
+
+```sh
+game_rng_cli --seed 1 --count 4 --show-roundoff
+crypto_rng_cli --bytes 32
+crypto_rng_cli --prime 1000000 2000000 --attempts 1024
 ```
 
-#### Implementation Details
-- Uses dual random values for height generation
-- Implements distance-based height attenuation
-- Normalizes heights to 0-255 range for PGM output
-- Memory-efficient single-pass generation
+The game tool is deterministic when its seed and options are fixed. The crypto
+tool is not reproducible and exits on provider failure. Its 64-bit prime mode
+is for number-theory exploration, not public-key generation.
 
-### 2. Particle System
-Location: `examples/game/particle_system.c`
-
-A 2D particle system simulation demonstrating the Game RNG's use in real-time applications.
-
-#### Features
-- Supports up to 1000 simultaneous particles
-- Physics-based movement with gravity
-- Variable particle lifetime
-- Frame-by-frame state output
-
-#### Usage
-```bash
-./build/particle_sys
-```
-
-#### Implementation Details
-- Random velocity vector generation
-- Particle lifetime randomization
-- Efficient particle pool management
-- Physics-based updates at 60 FPS
-
-## Crypto RNG Examples
-
-### 1. Token Generation
-Location: `examples/crypto/token_generation.c`
-
-A secure token generator for creating cryptographically strong random tokens with timestamps.
-
-#### Features
-- 256-bit token generation
-- Timestamp integration
-- Hexadecimal output format
-- Configurable batch generation
-
-#### Usage
-```bash
-# Generate a single token
-./build/token_gen
-
-# Generate multiple tokens in hex format
-./build/token_gen --count 5 --hex
-```
-
-#### Security Properties
-- Cryptographically secure random generation
-- Timestamp-based uniqueness
-- Prime number-based mixing
-- Configurable mixing rounds
-
-### 2. Key Derivation
-Location: `examples/crypto/key_derivation.c`
-
-A secure key derivation function (KDF) implementation for password-based key generation.
-
-#### Features
-- Variable key length (128-512 bits)
-- Configurable iteration count
-- 128-bit random salt generation
-- Password-based derivation
-
-#### Usage
-```bash
-# Generate a 256-bit key
-./build/key_derive --password "your_password" --length 32
-
-# Generate with custom iterations and show salt
-./build/key_derive --password "your_password" --length 32 --iterations 20000 --show-salt
-```
-
-#### Security Properties
-- Random salt generation
-- Iterative mixing for computational hardness
-- State-based mixing with password and salt
-- Configurable security parameters
-
-## Building the Examples
-
-All examples can be built using the provided Makefile:
-
-```bash
-# Build all examples
-make all
-
-# Build specific examples
-gcc -o build/terrain_gen examples/game/terrain_generation.c src/game_rng/game_rng.c -I. -lm
-gcc -o build/particle_sys examples/game/particle_system.c src/game_rng/game_rng.c -I. -lm
-gcc -o build/token_gen examples/crypto/token_generation.c src/crypto_rng/crypto_rng.c -I. -lm
-gcc -o build/key_derive examples/crypto/key_derivation.c src/crypto_rng/crypto_rng.c -I. -lm
-```
-
-## Performance Considerations
-
-### Game RNG Applications
-- Terrain generation: ~0.1s for 256x256 heightmap
-- Particle system: Supports 1000+ particles at 60 FPS
-- Memory usage: < 1MB for both applications
-
-### Crypto RNG Applications
-- Token generation: ~10,000 tokens/second
-- Key derivation: ~0.1s for 10,000 iterations
-- Memory usage: < 1MB for both applications
-
-## Best Practices
-
-1. **Game Applications**
-   - Use batch generation when possible
-   - Reuse RNG instance for multiple generations
-   - Consider thread-local RNG instances for parallel generation
-
-2. **Cryptographic Applications**
-   - Always use fresh salt for key derivation
-   - Store salt alongside derived keys
-   - Use appropriate iteration counts for target platform
-   - Validate input parameters
-
-## Example Output Samples
-
-### Terrain Generation
-```
-P2
-256 256
-255
-... [heightmap data in PGM format]
-```
-
-### Particle System
-```
-Frame 0
-Active particles: 10
-Particle 0: pos=(0.00, 0.00) vel=(1.23, 0.45) life=2.50
-...
-```
-
-### Token Generation
-```
-65a1fc8e00000000-f7c91b3e4a2d8f5e9b0c7d2a1f6e4b8a...
-```
-
-### Key Derivation
-```
-Derived Key (32 bytes):
-a1b2c3d4e5f6...
-Salt:
-f7e6d5c4b3a2...
+Command output is human-facing and is not a stable machine protocol. Link the
+library API for applications that need structured error handling or binary
+data.

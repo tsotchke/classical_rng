@@ -1,11 +1,9 @@
-export function readTestResults() {
-  // Retrieve the 'game_rng_results' and 'crypto_rng_results' data from localStorage
-  const gameRngData = JSON.parse(localStorage.getItem('game_rng_results') || '{}');
-  const cryptoRngData = JSON.parse(localStorage.getItem('crypto_rng_results') || '{}');
-
-  // Return an object containing the test results for both RNGs
-  return {
-    game_rng: gameRngData,
-    crypto_rng: cryptoRngData
-  };
+export function parseTestResult(text) {
+  const trimmed = text.trim();
+  if (!trimmed) throw new Error('Paste one JSON result from a module test.');
+  const result = JSON.parse(trimmed);
+  if (!Array.isArray(result.buckets) || !Array.isArray(result.one_bits)) {
+    throw new Error('Result must contain buckets and one_bits arrays.');
+  }
+  return result;
 }

@@ -1,350 +1,188 @@
-# Classical RNG Library
+# classical_rng
 
-A high-performance C library providing two specialized random number generators: a fast game-oriented RNG and a cryptographically secure RNG. Each implementation is optimized for its specific use case while maintaining high statistical quality.
+`classical_rng` is a C11 random-number library built around the project’s
+original two-part architecture:
 
-## 🎮 Game RNG
+- `game_rng` is a reproducible generator whose output incorporates exact
+  roundoff residues from 200-fractional-digit fixed-point representations of
+  pi and e.
+- `crypto_rng` obtains secret randomness from the operating system and retains
+  the project’s random-prime/number-theory layer with portable 64-bit
+  arithmetic.
 
-The Game RNG implementation uses a hybrid approach combining mathematical constants (π and e) with rotation-based mixing functions for fast, high-quality random number generation.
+Version 2 makes the high-precision constant machinery operational and
+observable, fixes the integer-range crash reported in
+[PR #1](https://github.com/tsotchke/classical_rng/pull/1), consistently
+namespaces the public API, and adds portable builds for GCC, Clang, and MSVC.
+It preserves the recognizable game/crypto split and the constant-based
+architecture rather than replacing it with a generic PRNG wrapper.
 
-### Features
-- Ultra-fast generation (~36M numbers/second)
-- Excellent statistical distribution (χ² ≈ 1000)
-- Perfect bit entropy (2.0)
-- Optimized for real-time applications
+## What the constant engine does
 
-### CLI Usage
-```bash
-# Basic usage (generates 10 random numbers)
-./build/game_rng_cli
+For either mathematical constant `k`, define `S = 10^200` and
+`C = floor(kS)`. The game generator stores `C` as a nonnegative big integer in
+base `10^9`. On every draw it:
 
-# Generate 100 random floating-point numbers between 0 and 1
-./build/game_rng_cli --num_values 100 --float
+1. advances a xoshiro256** state seeded through SplitMix64;
+2. derives state-dependent 32-bit divisors;
+3. divides both high-precision constants limb by limb;
+4. captures exact Euclidean remainders discarded by fixed-point quotient
+   truncation;
+5. avalanches those residues together with the core output.
 
-# Generate numbers within a specific range (e.g., for dice rolls)
-./build/game_rng_cli --num_values 50 --range_min 1 --range_max 6
+For seed `1`, the first pi calculation is exactly:
 
-# Generate hexadecimal output
-./build/game_rng_cli --format hex --num_values 20
-
-# Run performance benchmark
-./build/game_rng_cli --benchmark
-
-# Custom benchmark size
-./build/game_rng_cli --benchmark --benchmark_size 50000000
-
-# Quiet mode (suppress additional output)
-./build/game_rng_cli --quiet --num_values 10
+```text
+remainder / divisor = 3488475904 / 3772506329
 ```
 
-### CLI Arguments (Game RNG)
-```
---num_values N     Number of random values to generate (default: 10)
-                  Range: 1 to MAX_INT
-                  Example: --num_values 100
+The remainder is not a truncated `double`; all 200 fractional digits
+participate in exact integer division. If `C = qd + r` and
+`k = C/S + delta`, then
 
---format FORMAT    Output format for generated numbers
-                  Values: decimal (default), hex
-                  Example: --format hex
-
---range_min N     Minimum value for range output (default: 0)
-                  Must be less than range_max
-                  Example: --range_min 1
-
---range_max N     Maximum value for range output
-                  Must be greater than range_min
-                  Example: --range_max 6
-
---float           Output as floating point numbers [0,1]
-                  No additional parameters needed
-                  Example: --float
-
---benchmark       Run performance benchmark
-                  Cannot be combined with other generation options
-                  Example: --benchmark
-
---benchmark_size N Number of iterations for benchmark
-                  Default: 10000000
-                  Example: --benchmark_size 50000000
-
---quiet           Suppress additional output
-                  Only show generated numbers
-                  Example: --quiet
-
---help            Display help message with all options
+```text
+k/d = q/S + r/(dS) + delta/d,    0 <= r < d, 0 <= delta < 10^-200.
 ```
 
-## 🔒 Crypto RNG
+Thus `r/(dS)` is the fixed-precision quotient truncation term, while
+`delta/d` is the separate error introduced by storing only 200 fractional
+digits. The API retains “roundoff” for the former, exact and observable,
+quantity. Use `crng_game_rng_last_roundoff` or `crng_constant_roundoff` to
+inspect each step.
 
-The Cryptographic RNG implementation focuses on security-critical applications requiring unpredictable random numbers.
+This construction is useful for reproducible generation and for studying
+fixed-point error propagation. It is a custom noncryptographic output
+composition: the project proves the integer arithmetic and bounded mappings,
+but does not claim a least scalar-output period, an equidistribution dimension,
+independent nearby-seed streams, or cryptographic unpredictability. Because pi
+and e are public constants, their residues are not secret entropy.
 
-### Features
-- Cryptographically secure output
-- Hardware entropy source integration
-- Prime number generation
-- Configurable mixing rounds
+## Choose the right module
 
-### CLI Usage
-```bash
-# Basic usage (generates 10 random numbers)
-./build/crypto_rng_cli
+| Task | API | Property |
+|---|---|---|
+| Reproducible simulation or game | `crng_game_rng_*` | Same v2 algorithm, seed, and call schedule give the same outputs |
+| Procedural generation | `crng_game_rng_*` | Explicit state and unbiased bounded mapping |
+| Inspect high-precision roundoff | `crng_game_rng_last_roundoff` | Exact quotient remainders for pi and e |
+| Token, salt, key, or nonce | `crng_secure_*` | Native OS cryptographic randomness |
+| Random 64-bit prime | `crng_crypto_random_prime_u64` | OS candidate selection and deterministic Miller-Rabin |
 
-# Generate with custom prime bounds and mixing rounds
-./build/crypto_rng_cli --prime_lower 1000 --prime_upper 10000 --mixing_rounds 30
+## Quick start
 
-# Generate 50 numbers in hexadecimal format
-./build/crypto_rng_cli --num_values 50 --format hex
-
-# Run performance benchmark
-./build/crypto_rng_cli --benchmark
-
-# Custom benchmark with specific parameters
-./build/crypto_rng_cli --benchmark --benchmark_size 100000 --mixing_rounds 40
-
-# Quiet mode with hex output
-./build/crypto_rng_cli --quiet --format hex --num_values 5
-```
-
-### CLI Arguments (Crypto RNG)
-```
---num_values N     Number of random values to generate (default: 10)
-                  Range: 1 to MAX_INT
-                  Example: --num_values 50
-
---prime_lower N    Lower bound for prime numbers
-                  Must be >= 2
-                  Default: 2^(MIN_PRIME_BITS-1)
-                  Example: --prime_lower 1000
-
---prime_upper N    Upper bound for prime numbers
-                  Must be > prime_lower
-                  Default: 2^MIN_PRIME_BITS
-                  Example: --prime_upper 10000
-
---mixing_rounds N  Number of mixing rounds for extra security
-                  Range: 1 to MAX_INT
-                  Default: DEFAULT_MIXING_ROUNDS (20)
-                  Example: --mixing_rounds 30
-
---format FORMAT    Output format for generated numbers
-                  Values: decimal (default), hex
-                  Example: --format hex
-
---benchmark       Run performance benchmark
-                  Cannot be combined with other generation options
-                  Example: --benchmark
-
---benchmark_size N Number of iterations for benchmark
-                  Default: 10000000
-                  Example: --benchmark_size 100000
-
---quiet           Suppress additional output
-                  Only show generated numbers
-                  Example: --quiet
-
---help            Display help message with all options
-```
-
-## 📊 Example Applications
-
-### Game Development
 ```c
-// Terrain Generation
-GameRNG rng;
-init_game_rng(&rng);
-float height = random_float(&rng) * MAX_HEIGHT;
+#include <classical_rng.h>
+#include <inttypes.h>
+#include <stdio.h>
 
-// Particle System
-float angle = random_float(&rng) * 2 * M_PI;
-float speed = random_float(&rng) * 2.0f + 1.0f;
+int main(void) {
+    crng_game_rng rng;
+    crng_roundoff_sample roundoff;
+    uint64_t die;
+
+    crng_game_rng_seed(&rng, UINT64_C(2026));
+    if (crng_game_rng_uniform_u64(&rng, UINT64_C(6), &die) != CRNG_OK) {
+        return 1;
+    }
+    if (crng_game_rng_last_roundoff(&rng, &roundoff) != CRNG_OK) {
+        return 1;
+    }
+
+    printf("d6 = %" PRIu64 ", pi remainder = %" PRIu32 "\n",
+           die + UINT64_C(1), roundoff.pi.remainder);
+    return 0;
+}
 ```
 
-### Security Applications
-```c
-// Token Generation
-uint64_t token = secure_random(prime_lower, prime_upper, DEFAULT_MIXING_ROUNDS);
+Build and test with CMake:
 
-// Key Derivation
-uint8_t key[32];
-derive_key(password, sizeof(key), iterations, &key);
+```sh
+cmake -S . -B build \
+  -DCRNG_BUILD_TESTS=ON \
+  -DCRNG_BUILD_EXAMPLES=ON \
+  -DCRNG_WARNINGS_AS_ERRORS=ON
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure
 ```
 
-See [Example Applications](docs/example_applications.md) for more detailed examples.
+Or use Make on Unix-like systems and MinGW:
 
-## 🛠 Building
-
-### Prerequisites
-- C compiler (gcc/clang)
-- Make
-- Node.js (for visualization, optional)
-
-### Building
-```bash
-# Build everything (libraries, CLIs, and tests)
-make all
-
-# Run tests
+```sh
 make test
-
-# Run tests with visualization
-make viz
+make examples
+./build/crng_constant_roundoff
+./build/game_rng_cli --seed 1 --count 4 --show-roundoff
+./build/crypto_rng_cli --bytes 32
 ```
 
-## 📈 Testing
+## Repository architecture
 
-### Running Tests
-```bash
-# Basic test suite
-./build/test_game_rng
-./build/test_crypto_rng
-
-# With visualization
-cd tests/visualization
-npm install
-npm start
+```text
+include/
+  classical_rng.h                 umbrella header
+  classical_rng/
+    common.h                      status, version, visibility
+    game_rng.h                    high-precision deterministic engine
+    crypto_rng.h                  OS randomness and prime generation
+src/
+  common/                         shared constants and status text
+  game_rng/                       fixed-point residues, generator, CLI
+  crypto_rng/                     OS backends, number theory, CLI
+examples/
+  game/                           particles and terrain
+  crypto/                         tokens and KDF salt preparation
+docs/                             theory, implementation, API, exercises
+tests/                            vectors, boundaries, portability checks
 ```
 
-### Test Output
-```json
-{
-  "distribution": [...],
-  "bit_counts": [...],
-  "transition_matrix": [[...], [...]],
-  "metrics": {
-    "chi_square": 1004.852,
-    "bit_entropy": 2.000000,
-    "generation_time": 0.027543,
-    "numbers_per_second": 36306865
-  }
-}
-```
+Legacy include paths under `src/game_rng` and `src/crypto_rng` remain as
+compatibility facades. Define `CRNG_ENABLE_V1_COMPAT` before including one to
+enable the original unnamespaced spellings for staged migration. New code
+should use installed headers and `crng_`/`CRNG_` identifiers.
 
-## 📚 Documentation
+## Correct range handling
 
-- [Mathematical Principles](docs/mathematical_principles.md)
-- [Performance Analysis](docs/performance_analysis.md)
-- [Bit Distribution](docs/bit_distribution.md)
-- [Implementation Details](docs/implementation_details.md)
-- [Example Applications](docs/example_applications.md)
+Bounded functions use rejection sampling rather than plain modulo. Signed
+inclusive ranges calculate their span after promoting both endpoints to
+`int64_t`, so `INT32_MIN..INT32_MAX` correctly has `2^32` outcomes. Reversed
+ranges return `CRNG_ERR_INVALID_RANGE` rather than reaching a zero divisor.
 
-## 📁 Project Structure
+## Secure platform backends
 
-```
-classical_rng/
-├── docs/                           # Documentation
-│   ├── mathematical_principles.md  # Mathematical foundations
-│   ├── performance_analysis.md     # Performance benchmarks and analysis
-│   ├── bit_distribution.md        # Statistical properties analysis
-│   ├── implementation_details.md   # Implementation specifics
-│   └── example_applications.md     # Detailed example usage
-│
-├── src/                           # Source code
-│   ├── common/                    # Shared utilities
-│   │   └── constants.h           # Common constants and configurations
-│   │
-│   ├── game_rng/                 # Game RNG implementation
-│   │   ├── game_rng.h           # Public API
-│   │   ├── game_rng.c           # Implementation
-│   │   └── game_rng_cli.c       # Command-line interface
-│   │
-│   └── crypto_rng/               # Cryptographic RNG implementation
-│       ├── crypto_rng.h         # Public API
-│       ├── crypto_rng.c         # Implementation
-│       └── crypto_rng_cli.c     # Command-line interface
-│
-├── tests/                         # Test suite
-│   ├── test_game_rng.c          # Game RNG tests
-│   ├── test_game_rng.h          # Game RNG test headers
-│   ├── test_crypto_rng.c        # Crypto RNG tests
-│   ├── test_crypto_rng.h        # Crypto RNG test headers
-│   │
-│   ├── test_utils/              # Test utilities
-│   │   ├── statistical_tests.c  # Statistical test implementations
-│   │   └── statistical_tests.h  # Statistical test headers
-│   │
-│   └── visualization/           # Test result visualization
-│       ├── src/                # React application source
-│       ├── package.json        # Node.js dependencies
-│       └── vite.config.js      # Vite configuration
-│
-├── examples/                      # Example applications
-│   ├── game/                    # Game RNG examples
-│   │   ├── terrain_generation.c # Terrain generation example
-│   │   └── particle_system.c    # Particle system example
-│   │
-│   └── crypto/                  # Crypto RNG examples
-│       ├── token_generation.c   # Token generation example
-│       └── key_derivation.c     # Key derivation example
-│
-├── Makefile                      # Build configuration
-├── .gitignore                    # Git ignore rules
-├── LICENSE                       # MIT License
-├── CONTRIBUTING.md               # Contribution guidelines
-└── README.md                     # This file
-```
+| Platform | Source |
+|---|---|
+| Windows | `BCryptGenRandom` |
+| macOS and supported BSDs | `arc4random_buf` |
+| Linux and Android API 28+ | `getrandom`, with `/dev/urandom` fallback for `ENOSYS` |
+| Android API 27 and earlier | `/dev/urandom` |
+| Other POSIX systems | `/dev/urandom` |
 
-## 🔍 Implementation Details
+The library has no global mutable RNG state and no heap allocation. Native
+entropy failures are returned rather than hidden behind the deterministic
+generator. A caller must treat the requested buffer as unusable after failure
+because a prefix may already have been filled.
 
-### Game RNG
-```c
-typedef struct {
-    uint64_t state[4];
-    FastBigInt pi;
-    FastBigInt e;
-    uint64_t rotation_primes[8];
-} GameRNG;
-```
+## Documentation
 
-### Crypto RNG
-```c
-uint64_t secure_random(uint64_t prime_lower, 
-                      uint64_t prime_upper, 
-                      int mixing_rounds);
-```
+- [Documentation index](docs/README.md)
+- [Getting started](docs/getting-started.md)
+- [Complete API reference](docs/api-reference.md)
+- [Guarantees, evidence, and non-guarantees](docs/guarantees.md)
+- [Deterministic generator specification](docs/deterministic-prng.md)
+- [Mathematical principles](docs/mathematical_principles.md)
+- [Implementation details](docs/implementation_details.md)
+- [Secure-randomness threat boundary](docs/secure-randomness.md)
+- [Bit distribution and test interpretation](docs/bit_distribution.md)
+- [Performance analysis](docs/performance_analysis.md)
+- [Portability and integration](docs/portability.md)
+- [Example applications](docs/example_applications.md)
+- [Hands-on learning guide](docs/learning-guide.md)
+- [Primary references and provenance](docs/references.md)
+- [Contributing](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
 
-## 🧪 Statistical Properties
+## License
 
-### Game RNG
-- Distribution: Uniform
-- Period: 2^256
-- Chi-square: ~1004.85
-- Bit entropy: 2.0
-
-### Crypto RNG
-- NIST SP 800-22 compliant
-- Cryptographically secure
-- Non-deterministic
-- Hardware entropy integration
-
-## 🚀 Performance
-
-### Game RNG
-- ~36M numbers/second
-- ~27.5ns per number
-- Cache-friendly design
-- SIMD optimizations
-
-### Crypto RNG
-- ~50K secure numbers/second
-- Configurable security levels
-- Memory-hardened
-- Side-channel resistant
-
-## Citation
-If you use this project in your research, please cite as follows:
-
-```bibtex
-@software{ClassicalRNG,
-  author = {tsotchke},
-  title = {Classical Random Number Generators},
-  year = {2024},
-  url = {https://github.com/tsotchke/classical_rng}
-}
-```
-
-## 📄 License
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) file for details.
-
-## 🤝 Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and submission process.
+MIT. See [LICENSE](LICENSE). The xoshiro256** and SplitMix64 algorithms were
+published by their cited authors; this repository contains its own C11
+implementation and fixed-point constant-residue composition. See
+[References](docs/references.md).

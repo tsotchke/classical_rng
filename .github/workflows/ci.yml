@@ -1,0 +1,116 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux GCC
+            os: ubuntu-latest
+            cc: gcc
+          - name: Linux Clang
+            os: ubuntu-latest
+            cc: clang
+          - name: macOS AppleClang
+            os: macos-latest
+            cc: clang
+          - name: Windows MSVC
+            os: windows-latest
+            cc: cl
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        env:
+          CC: ${{ matrix.cc }}
+        run: >-
+          cmake -S . -B build
+          -DCRNG_BUILD_TESTS=ON
+          -DCRNG_BUILD_EXAMPLES=ON
+          -DCRNG_WARNINGS_AS_ERRORS=ON
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Install package
+        run: cmake --install build --config Release --prefix install
+      - name: Configure installed-package consumer
+        run: >-
+          cmake -S tests/cmake_consumer -B consumer-build
+          -DCMAKE_PREFIX_PATH=${{ github.workspace }}/install
+      - name: Build installed-package consumer
+        run: cmake --build consumer-build --config Release
+
+  sanitizers:
+    name: Linux Clang sanitizers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        env:
+          CC: clang
+        run: >-
+          cmake -S . -B build-sanitize
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCRNG_BUILD_TESTS=ON
+          -DCRNG_BUILD_EXAMPLES=OFF
+          -DCRNG_WARNINGS_AS_ERRORS=ON
+          -DCRNG_ENABLE_SANITIZERS=ON
+      - name: Build
+        run: cmake --build build-sanitize
+      - name: Test
+        run: ctest --test-dir build-sanitize --output-on-failure
+
+  android-cross:
+    name: Android NDK cross-builds
+    runs-on: ubuntu-latest
+    env:
+      NDK_VERSION: 26.2.11394342
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned NDK
+        run: sdkmanager "ndk;${NDK_VERSION}"
+      - name: Build API and ABI matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          toolchain="${ANDROID_SDK_ROOT}/ndk/${NDK_VERSION}/build/cmake/android.toolchain.cmake"
+          for target in \
+            arm64-v8a:23 \
+            armeabi-v7a:23 \
+            x86:23 \
+            x86_64:23 \
+            arm64-v8a:28
+          do
+            abi="${target%%:*}"
+            api="${target##*:}"
+            for linkage in static shared
+            do
+              shared=OFF
+              if [[ "${linkage}" == shared ]]; then
+                shared=ON
+              fi
+              build="build-android-${abi}-api${api}-${linkage}"
+              cmake -S . -B "${build}" -G Ninja \
+                -DCMAKE_TOOLCHAIN_FILE="${toolchain}" \
+                -DANDROID_ABI="${abi}" \
+                -DANDROID_PLATFORM="android-${api}" \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCRNG_WARNINGS_AS_ERRORS=ON \
+                -DCRNG_BUILD_TESTS=OFF \
+                -DCRNG_BUILD_EXAMPLES=ON \
+                -DCRNG_BUILD_TOOLS=ON \
+                -DBUILD_SHARED_LIBS="${shared}"
+              cmake --build "${build}"
+            done
+          done

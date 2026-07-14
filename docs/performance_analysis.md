@@ -1,227 +1,85 @@
-# Performance Analysis
+# Performance analysis
 
-This document provides detailed performance analysis of both RNG implementations, including benchmarks, optimization techniques, and comparative analysis.
+Version 2.0.0 ships no benchmark harness and makes no numeric throughput or
+latency claim. This page identifies the cost model and a reproducible protocol
+for future measurements.
 
-## Benchmarking Methodology
+## Cost model
 
-### Test Environment
-- CPU: Modern x86_64 processor
-- Compiler: GCC with -O3 optimization
-- OS: POSIX-compliant system
-- Memory: DDR4 RAM
+One raw deterministic 64-bit draw performs:
 
-### Measurement Tools
-1. High-precision timers (nanosecond resolution)
-2. CPU performance counters
-3. Memory profiling tools
-4. Cache analysis tools
+- one xoshiro256** output and state transition;
+- two exact divisions of 23 active base-`10^9` limbs by 32-bit divisors;
+- fixed 64-bit divisor derivation and avalanche mixing.
 
-## Game RNG Performance
+The two long divisions are the deliberate numerical feature. Their work is
+bounded and independent of the divisor magnitude. `crng_game_rng_fill`
+amortizes one draw over at most eight output bytes but discards unused bytes in
+a partial final word.
 
-### Speed Metrics
-```
-Numbers Generated per Second: ~36M
-Average Generation Time: 27.5ns per number
-Throughput: 288MB/s
-```
+Bounded generation may reject source words. If the bound is `b` and
+`t = 2^64 mod b`, expected draws are `1/(1 - t/2^64) < 2`. The exact rate
+depends on `b` and must be reported with bounded benchmarks.
 
-### CPU Efficiency
-1. **Cache Performance**
-   - L1 cache hit rate: 98.7%
-   - L2 cache hit rate: 99.9%
-   - Cache line utilization: 87.5%
+Secure APIs are dominated by native-system behavior: syscall or library-call
+overhead, provider batching, blocking policy, and request size. Prime search
+adds a data-dependent number of candidate draws and Miller-Rabin operations;
+its latency distribution is more informative than one mean.
 
-2. **Branch Prediction**
-   - Branch misprediction rate: 0.02%
-   - Branch-free main loop
-   - Predictable control flow
+## Reproducible benchmark protocol
 
-3. **Instruction Pipeline**
-   - IPC (Instructions Per Cycle): 3.8
-   - Pipeline stalls: 0.3%
-   - Superscalar execution efficiency: 92%
+A defensible benchmark should:
 
-### Memory Usage
-```
-Static Memory:
-- State structure: 128 bytes
-- Constants: 2KB
+1. identify CPU model, architecture, OS/kernel, power policy, compiler/version,
+   optimization flags, link mode, and classical_rng revision;
+2. benchmark Release artifacts while preserving the same semantics and
+   known-answer vectors as tested builds;
+3. warm instruction/data caches separately from recorded trials;
+4. run enough independent trials to report median, dispersion, and preferably
+   a confidence interval rather than one best observation;
+5. use a monotonic high-resolution timer and measure an empty-loop or harness
+   baseline;
+6. consume results through a compiler-visible checksum or equivalent barrier
+   so generation cannot be optimized away;
+7. pin execution or record scheduling policy where reproducibility matters;
+8. exclude allocation, terminal I/O, text formatting, and setup unless those
+   are explicitly the subject of the measurement;
+9. publish source, raw observations, and the aggregation procedure.
 
-Dynamic Memory:
-- No heap allocations
-- Stack usage: 256 bytes
-```
+Clock-frequency scaling, thermal throttling, virtual machines, and shared
+continuous-integration hosts can dominate small differences. Report them
+rather than presenting cross-machine ratios as algorithm-only effects.
 
-### Optimization Techniques
+## Separate benchmark families
 
-1. **SIMD Optimization**
-   ```c
-   // Original scalar code
-   for (int i = 0; i < 4; i++) {
-       state[i] = rotate_left(state[i], primes[i]);
-   }
+Do not combine these into one “RNG speed” number:
 
-   // SIMD optimized version
-   __m256i state_vec = _mm256_load_si256((__m256i*)state);
-   __m256i rotated = _mm256_sllv_epi64(state_vec, prime_vec);
-   ```
+| Family | Suggested metric and controls |
+|---|---|
+| `next_u64` | nanoseconds per word and words/second; fixed seed; checksum outputs |
+| `fill` | bytes/second across request sizes; state whether tails are partial |
+| `uniform_u64` | time and source draws/result for representative and worst-case-like bounds |
+| `secure_bytes` | latency and throughput by request size; identify native backend |
+| `secure_uniform_u64` | time and provider draws/result by bound |
+| primality | latency by input class and bit length |
+| random prime | latency distribution, interval, attempt budget, successes/failures |
 
-2. **Cache Alignment**
-   ```c
-   typedef struct __attribute__((aligned(64))) {
-       uint64_t state[4];
-       FastBigInt pi;
-       FastBigInt e;
-   } GameRNG;
-   ```
+For bounded functions, include `b = 1`, powers of two, non-powers of two, and
+bounds with large rejection thresholds. For OS calls, small-request latency
+and large-buffer throughput answer different engineering questions.
 
-3. **Loop Unrolling**
-   ```c
-   // Manual loop unrolling for better instruction pipelining
-   state[0] = mix_function(state[0], constants[0]);
-   state[1] = mix_function(state[1], constants[1]);
-   state[2] = mix_function(state[2], constants[2]);
-   state[3] = mix_function(state[3], constants[3]);
-   ```
+## Optimization constraints
 
-## Crypto RNG Performance
+Performance work must preserve:
 
-### Security vs Speed Trade-offs
-```
-Default Configuration:
-- Mixing Rounds: 20
-- Prime Verification: Full
-- Entropy Pooling: Enabled
+- canonical 200-fractional-digit inputs;
+- exact Euclidean remainders;
+- versioned known-answer output and residue vectors;
+- unsigned overflow semantics and portable shift counts;
+- error propagation and unbiased range mapping;
+- GCC/Clang/MSVC builds and C/C++ headers.
 
-Speed-Optimized Configuration:
-- Mixing Rounds: 12
-- Prime Verification: Quick
-- Entropy Pooling: Basic
-```
-
-### Performance Metrics
-1. **Token Generation**
-   - 256-bit tokens: 50,000/second
-   - 512-bit tokens: 25,000/second
-   - 1024-bit tokens: 12,500/second
-
-2. **Prime Generation**
-   ```
-   Bit Length | Time (ms) | Verification Rounds
-   32         | 0.1      | 20
-   64         | 0.3      | 25
-   128        | 1.2      | 30
-   256        | 4.8      | 35
-   ```
-
-3. **Memory Usage**
-   ```
-   Component        | Memory (KB)
-   Entropy Pool     | 16
-   Prime Cache      | 32
-   State Buffer     | 4
-   Mixing Buffer    | 8
-   ```
-
-## Comparative Analysis
-
-### Game RNG vs Standard Libraries
-```
-Implementation    | Numbers/sec | Quality (χ²)
-Game RNG         | 36M        | 1004.85
-rand()           | 45M        | 1892.31
-random()         | 28M        | 1243.67
-mt19937          | 42M        | 1012.44
-```
-
-### Crypto RNG vs OpenSSL
-```
-Operation        | Classical RNG | OpenSSL
-256-bit Random  | 50K/sec      | 75K/sec
-Prime Gen (128) | 1.2ms        | 0.9ms
-Token Gen       | 45K/sec      | 62K/sec
-```
-
-## Optimization Guidelines
-
-### Game RNG Optimization
-
-1. **State Management**
-   - Keep state size minimal
-   - Align data structures
-   - Use local variables
-
-2. **Computation Optimization**
-   - Prefer bitwise operations
-   - Unroll critical loops
-   - Use SIMD when possible
-
-3. **Memory Access**
-   - Minimize cache misses
-   - Avoid heap allocations
-   - Use stack variables
-
-### Crypto RNG Optimization
-
-1. **Security Levels**
-   ```c
-   typedef enum {
-       SECURITY_FAST,    // 12 mixing rounds
-       SECURITY_DEFAULT, // 20 mixing rounds
-       SECURITY_PARANOID // 30 mixing rounds
-   } SecurityLevel;
-   ```
-
-2. **Prime Caching**
-   - Cache commonly used prime numbers
-   - Implement prime verification shortcuts
-   - Use optimized Miller-Rabin testing
-
-3. **Entropy Management**
-   - Batch entropy collection
-   - Asynchronous pool refilling
-   - Efficient mixing algorithms
-
-## Performance Monitoring
-
-### Runtime Metrics
-```c
-typedef struct {
-    uint64_t numbers_generated;
-    double generation_time;
-    double entropy_bits;
-    uint32_t cache_misses;
-    uint32_t branch_misses;
-} PerformanceMetrics;
-```
-
-### Automated Benchmarking
-```bash
-# Continuous performance monitoring
-make benchmark
-
-# Detailed performance report
-make analyze-performance
-
-# Compare with previous results
-make benchmark-compare
-```
-
-## Future Optimizations
-
-1. **Planned Improvements**
-   - AVX-512 implementation
-   - Parallel prime generation
-   - Improved entropy gathering
-
-2. **Research Areas**
-   - New mixing functions
-   - Alternative prime testing
-   - Hardware acceleration
-
-## References
-
-1. Intel® 64 and IA-32 Architectures Optimization Reference Manual
-2. "Performance Analysis and Tuning of Random Number Generators" (2019)
-3. "Efficient Implementation of Random Number Generators" - Cryptography Research Journal
-4. "CPU Cache Optimization Guidelines" - ACM SIGARCH
+Replacing exact limb division with `double` or platform-dependent
+`long double` would measure a different algorithm and break the educational
+and cross-platform contract. A faster alternative may be valuable, but it
+requires an explicitly versioned stream change and matching documentation.

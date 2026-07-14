@@ -1,26 +1,28 @@
-#ifndef STATISTICAL_TESTS_H
-#define STATISTICAL_TESTS_H
+#ifndef CLASSICAL_RNG_STATISTICAL_TESTS_H
+#define CLASSICAL_RNG_STATISTICAL_TESTS_H
 
-#include <stdint.h>
 #include <stddef.h>
-#include "../src/common/constants.h"
+#include <stdint.h>
 
-typedef struct {
-    uint64_t *distribution;
-    uint64_t *bit_counts;
-    double *sequence_correlation;
-    uint64_t transition_matrix[2][2];
-    double chi_square;
-    double bit_entropy;
-    double generation_time;
-    uint64_t numbers_per_second;
-} TestResults;
+#define CRNG_TEST_BUCKETS 16
 
-TestResults* init_test_results(void);
-void free_test_results(TestResults *results);
-void run_distribution_test(TestResults *results, uint64_t *values, size_t count);
-void run_bit_analysis(TestResults *results, uint64_t *values, size_t count);
-void run_sequence_analysis(TestResults *results, uint64_t *values, size_t count);
-void output_json_results(const TestResults *results, const char *rng_name);
+typedef struct crng_test_distribution {
+    uint64_t buckets[CRNG_TEST_BUCKETS];
+    uint64_t one_bits[64];
+    size_t sample_count;
+} crng_test_distribution;
 
-#endif // STATISTICAL_TESTS_H
+void crng_test_analyze_distribution(
+    crng_test_distribution *report,
+    const uint64_t *values,
+    size_t count
+);
+
+int crng_test_distribution_has_coverage(const crng_test_distribution *report);
+
+void crng_test_print_json(
+    const char *generator,
+    const crng_test_distribution *report
+);
+
+#endif /* CLASSICAL_RNG_STATISTICAL_TESTS_H */

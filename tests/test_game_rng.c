@@ -1,51 +1,43 @@
-#include "statistical_tests.h"
+#include "classical_rng/game_rng.h"
 #include "test_game_rng.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
+#include "test_utils/statistical_tests.h"
 
-int main() {
-    printf("Running Game RNG tests...\n");
-    
-    uint64_t *values = malloc(TEST_SAMPLES * sizeof(uint64_t));
-    if (!values) {
-        fprintf(stderr, "Failed to allocate memory for test values\n");
+#include <stdlib.h>
+
+int run_game_rng_tests(void) {
+    enum { SAMPLE_COUNT = 32768 };
+    crng_test_distribution report;
+    crng_roundoff_sample roundoff = {0};
+    crng_game_rng rng;
+    uint64_t *values;
+    size_t index;
+    int result = 0;
+
+    values = (uint64_t *)malloc(sizeof(*values) * SAMPLE_COUNT);
+    if (values == NULL) {
         return 1;
     }
-    
-    TestResults *results = init_test_results();
-    if (!results) {
-        fprintf(stderr, "Failed to initialize test results\n");
-        free(values);
-        return 1;
+    crng_game_rng_seed(&rng, UINT64_C(1));
+    for (index = 0; index < SAMPLE_COUNT; ++index) {
+        values[index] = crng_game_rng_next_u64(&rng);
+        if (index == 0) {
+            if (crng_game_rng_last_roundoff(&rng, &roundoff) != CRNG_OK) {
+                result = 1;
+            }
+        }
     }
-    
-    // Initialize RNG
-    GameRNG rng;
-    init_game_rng(&rng);
-    
-    // Generate test values
-    clock_t start = clock();
-    
-    for (size_t i = 0; i < TEST_SAMPLES; i++) {
-        values[i] = next_random(&rng);
+
+    crng_test_analyze_distribution(&report, values, SAMPLE_COUNT);
+    if (!crng_test_distribution_has_coverage(&report) ||
+        roundoff.pi.remainder != UINT32_C(3488475904) ||
+        roundoff.e.remainder != UINT32_C(222945867)) {
+        result = 1;
     }
-    
-    clock_t end = clock();
-    results->generation_time = ((double)(end - start)) / CLOCKS_PER_SEC;
-    results->numbers_per_second = (uint64_t)(TEST_SAMPLES / results->generation_time);
-    
-    // Run statistical tests
-    run_distribution_test(results, values, TEST_SAMPLES);
-    run_bit_analysis(results, values, TEST_SAMPLES);
-    run_sequence_analysis(results, values, TEST_SAMPLES);
-    
-    // Output results in JSON format
-    output_json_results(results, "game_rng");
-    
-    // Cleanup
+    crng_test_print_json("game_rng", &report);
     free(values);
-    free_test_results(results);
-    
-    return 0;
+    return result;
+}
+
+int main(void) {
+    return run_game_rng_tests();
 }

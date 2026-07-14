@@ -1,47 +1,39 @@
+#include "classical_rng/crypto_rng.h"
 #include "test_crypto_rng.h"
-#include "statistical_tests.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
+#include "test_utils/statistical_tests.h"
 
-int main() {
-    printf("Running Cryptographic RNG tests...\n");
-    
-    uint64_t *values = malloc(TEST_SAMPLES * sizeof(uint64_t));
-    if (!values) {
-        fprintf(stderr, "Failed to allocate memory for test values\n");
+#include <stdlib.h>
+
+int run_crypto_rng_tests(void) {
+    enum { SAMPLE_COUNT = 4096 };
+    crng_test_distribution report;
+    uint64_t *values;
+    uint64_t prime = 0;
+    size_t index;
+    int result = 0;
+
+    values = (uint64_t *)malloc(sizeof(*values) * SAMPLE_COUNT);
+    if (values == NULL) {
         return 1;
     }
-    
-    TestResults *results = init_test_results();
-    if (!results) {
-        fprintf(stderr, "Failed to initialize test results\n");
-        free(values);
-        return 1;
+    for (index = 0; index < SAMPLE_COUNT; ++index) {
+        if (crng_secure_u64(&values[index]) != CRNG_OK) {
+            free(values);
+            return 1;
+        }
     }
-    
-    clock_t start = clock();
-    
-    // Use much smaller values for testing
-    uint64_t prime_lower = 1000000;
-    uint64_t prime_upper = 2000000;
-    
-    for (size_t i = 0; i < TEST_SAMPLES; i++) {
-        values[i] = secure_random(prime_lower, prime_upper, DEFAULT_MIXING_ROUNDS);
+
+    crng_test_analyze_distribution(&report, values, SAMPLE_COUNT);
+    if (!crng_test_distribution_has_coverage(&report) ||
+        crng_crypto_random_prime_u64(17, 17, 1, &prime) != CRNG_OK ||
+        prime != UINT64_C(17)) {
+        result = 1;
     }
-    
-    clock_t end = clock();
-    results->generation_time = ((double)(end - start)) / CLOCKS_PER_SEC;
-    results->numbers_per_second = (uint64_t)(TEST_SAMPLES / results->generation_time);
-    
-    run_distribution_test(results, values, TEST_SAMPLES);
-    run_bit_analysis(results, values, TEST_SAMPLES);
-    run_sequence_analysis(results, values, TEST_SAMPLES);
-    
-    output_json_results(results, "crypto_rng");
-    
+    crng_test_print_json("crypto_rng", &report);
     free(values);
-    free_test_results(results);
-    
-    return 0;
+    return result;
+}
+
+int main(void) {
+    return run_crypto_rng_tests();
 }
