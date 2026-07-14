@@ -32,6 +32,8 @@ introducing a consistently namespaced API.
   the checked `/dev/urandom` loop so all four NDK ABIs compile from API 23.
 - Added CMake install/export support, a small Makefile, and GCC/Clang/MSVC CI.
 - Added Android NDK static/shared cross-build gates for API levels 23 and 28.
+- Made Android NDK provisioning independent of the hosted runner's `PATH` by
+  invoking the pinned SDK command-line tool through `ANDROID_SDK_ROOT`.
 - Added an explicit compile-time requirement for 8-bit bytes and documented
   deterministic byte order, call-schedule consumption, C++ inclusion, and
   public-layout ABI limits.
@@ -51,6 +53,8 @@ introducing a consistently namespaced API.
   exact deterministic-output equations, guarantee/non-guarantee matrix,
   threat model, benchmark protocol, test-evidence audit, primary references,
   and advanced exercises.
+- Added canonical BibTeX and Citation File Format metadata crediting
+  `tsotchke` as the project author.
 
 ## 1.0.0 - 2024-12-16
 

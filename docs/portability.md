@@ -50,6 +50,23 @@ artifacts for `arm64-v8a`, `armeabi-v7a`, `x86`, and `x86_64` at API 23, plus
 CI is evidence for the revisions it executes, not a claim about every compiler
 version, architecture, or downstream flag set.
 
+### Android CI provenance
+
+The first version-2 workflow run,
+[29342608939](https://github.com/tsotchke/classical_rng/actions/runs/29342608939),
+failed in its Android provisioning step before CMake or an Android compiler
+ran: the hosted runner returned `sdkmanager: command not found` with exit code
+127. Commit `1bae032` changed the workflow to invoke the command through
+`$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager` explicitly.
+
+The immediately following run,
+[29342852018](https://github.com/tsotchke/classical_rng/actions/runs/29342852018),
+successfully installed NDK r26c and completed every configured static/shared
+API/ABI cross-build. That green run, rather than the superseded provisioning
+failure, is the hosted Android qualification record for the current source.
+These jobs compile and link Android targets; they do not claim execution on
+physical Android devices.
+
 CMake is authoritative for static/shared builds, installation, exports, and
 the full test matrix. The Makefile is a smaller static-library workflow for
 Unix-like shells and MinGW.

@@ -5,6 +5,25 @@ and test interpretation. The fixed-point constant-remainder composition is
 specific to this project and is specified in
 [The deterministic game generator](deterministic-prng.md).
 
+## Citing this project
+
+The canonical author credit follows the same software-citation form used by
+the author's other research repositories:
+
+```bibtex
+@software{classical_rng2026,
+  title = {classical\_rng: High-Precision Deterministic and Cryptographic Randomness in C},
+  author = {tsotchke},
+  version = {2.0.0},
+  year = {2026},
+  url = {https://github.com/tsotchke/classical_rng},
+  note = {Exact fixed-point pi/e roundoff residues with portable operating-system entropy backends}
+}
+```
+
+The root [`CITATION.cff`](../CITATION.cff) is the machine-readable authority
+for citation metadata.
+
 ## Deterministic generation
 
 - David Blackman and Sebastiano Vigna,

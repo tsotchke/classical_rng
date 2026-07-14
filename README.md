@@ -1,5 +1,7 @@
 # classical_rng
 
+[![CI](https://github.com/tsotchke/classical_rng/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/tsotchke/classical_rng/actions/workflows/ci.yml)
+
 `classical_rng` is a C11 random-number library built around the project’s
 original two-part architecture:
 
@@ -179,6 +181,24 @@ because a prefix may already have been filled.
 - [Primary references and provenance](docs/references.md)
 - [Contributing](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
+
+## Citation
+
+If you use `classical_rng` in academic work, technical reports, teaching
+material, or research software, please cite the project and its author:
+
+```bibtex
+@software{classical_rng2026,
+  title = {classical\_rng: High-Precision Deterministic and Cryptographic Randomness in C},
+  author = {tsotchke},
+  version = {2.0.0},
+  year = {2026},
+  url = {https://github.com/tsotchke/classical_rng},
+  note = {Exact fixed-point pi/e roundoff residues with portable operating-system entropy backends}
+}
+```
+
+Machine-readable metadata is available in [CITATION.cff](CITATION.cff).
 
 ## License
 

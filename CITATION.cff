@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "classical_rng: High-Precision Deterministic and Cryptographic Randomness in C"
+type: software
+authors:
+  - family-names: "tsotchke"
+version: 2.0.0
+date-released: 2026-07-13
+repository-code: "https://github.com/tsotchke/classical_rng"
+url: "https://github.com/tsotchke/classical_rng"
+license: MIT
+abstract: >-
+  A portable C11 library that preserves a deterministic game-RNG and
+  operating-system-backed cryptographic-RNG architecture, with exact
+  fixed-point pi/e quotient-remainder introspection.
+keywords:
+  - random-number-generation
+  - fixed-point-arithmetic
+  - cryptographic-randomness
+  - c11

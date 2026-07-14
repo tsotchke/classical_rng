@@ -14,7 +14,8 @@ project has not established.
 | Full `int32_t` inclusive range is free of signed overflow | Proven for the implementation types | `int64_t` span proof, boundary regression, UBSan |
 | Deterministic primality classification covers every `uint64_t` | Guaranteed by the selected witness record | Seven fixed witnesses plus regression cases |
 | OS byte API delegates to the documented native facility and never falls back to the game generator | Implementation contract | Backend inspection and successful-path platform tests |
-| Native entropy-source failure is propagated correctly on every backend | Implemented but not failure-injection tested | Static review; no injectable backend currently exists |
+| Linux/POSIX entropy-source failures preserve status and output contracts | Release-qualified with an external failure-injection harness | `EINTR`, partial reads, `ENOSYS` fallback, open failure, zero read, late `EIO`, and scalar/prime propagation were exercised; the harness is not yet a checked-in public test |
+| Native entropy-source failure is propagated correctly on every non-POSIX backend | Implemented; not failure-injection qualified on every native OS | Static review plus successful-path platform tests |
 | The custom deterministic output has a particular least period or equidistribution dimension | No claim | Output injectivity and distribution have not been proven |
 | The deterministic generator is cryptographically unpredictable | Explicitly false | State and constants are public and deterministic |
 | Nearby seeds create independent parallel streams | No claim | No split/jump API or independence proof |

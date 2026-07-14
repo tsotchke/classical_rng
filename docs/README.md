@@ -15,6 +15,7 @@ Start with the question you are trying to answer:
 | How should I interpret bit-frequency tests? | [Bit distribution](bit_distribution.md) |
 | How should the numerical cost be benchmarked? | [Performance analysis](performance_analysis.md) |
 | Which sources support the algorithms and platform APIs? | [References](references.md) |
+| How should I cite the project and author? | [References and citation](references.md#citing-this-project) |
 
 ## Reading paths
 
